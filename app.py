@@ -13,6 +13,7 @@ from flask import (
 )
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.pool import NullPool
 from dotenv import load_dotenv
 
 
@@ -25,10 +26,18 @@ env_path = os.path.join(
     ".env"
 )
 
-load_dotenv(env_path, override=True)
+load_dotenv(
+    env_path,
+    override=True
+)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-SHOPIER_API_KEY = os.getenv("SHOPIER_API_KEY")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL"
+)
+
+SHOPIER_API_KEY = os.getenv(
+    "SHOPIER_API_KEY"
+)
 
 
 # =========================================================
@@ -47,7 +56,7 @@ PASSWORD = os.getenv(
 
 
 # =========================================================
-# SHOPIER OTOMATİK KONTROL AYARI
+# SHOPIER
 # =========================================================
 
 SHOPIER_CHECK_INTERVAL = 60
@@ -61,17 +70,35 @@ app = Flask(__name__)
 
 app.secret_key = os.getenv(
     "FLASK_SECRET_KEY",
-    "stok-panel-gizli-anahtar"
+    "stok-panel-secret-key"
 )
 
+
+# =========================================================
+# DATABASE
+# =========================================================
+#
+# NullPool kullanıyoruz.
+#
+# Render + Supabase Pooler + uzun süre açık worker
+# kombinasyonunda eski/stale SSL bağlantılarının
+# tekrar kullanılmasını engeller.
+# =========================================================
+
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "poolclass": NullPool,
+    "pool_pre_ping": True
+}
 
 db = SQLAlchemy(app)
 
 
 # =========================================================
-# AYNI ANDA İKİ SHOPIER KONTROLÜ OLMASIN
+# SHOPIER LOCK
 # =========================================================
 
 shopier_lock = threading.Lock()
@@ -153,7 +180,7 @@ class ShopierOrder(db.Model):
 
 
 # =========================================================
-# LOGIN KONTROL
+# LOGIN REQUIRED
 # =========================================================
 
 def login_required():
@@ -164,7 +191,7 @@ def login_required():
 
 
 # =========================================================
-# LOGIN
+# HOME / LOGIN
 # =========================================================
 
 @app.route(
@@ -219,7 +246,7 @@ def logout():
 
 
 # =========================================================
-# SHOPIER API
+# SHOPIER ORDERS API
 # =========================================================
 
 def get_shopier_orders():
@@ -237,6 +264,7 @@ def get_shopier_orders():
     )
 
     headers = {
+
         "Authorization":
             f"Bearer {SHOPIER_API_KEY}",
 
@@ -266,9 +294,12 @@ def get_shopier_orders():
 
             return []
 
-        data = response.json()
+        orders = response.json()
 
-        if not isinstance(data, list):
+        if not isinstance(
+            orders,
+            list
+        ):
 
             print(
                 "Shopier'den beklenmeyen veri geldi."
@@ -276,7 +307,7 @@ def get_shopier_orders():
 
             return []
 
-        return data
+        return orders
 
     except requests.RequestException as e:
 
@@ -297,7 +328,7 @@ def get_shopier_orders():
 
 
 # =========================================================
-# SİPARİŞ DAHA ÖNCE İŞLENDİ Mİ?
+# CHECK PROCESSED ORDER
 # =========================================================
 
 def order_already_processed(
@@ -318,7 +349,7 @@ def order_already_processed(
 
 
 # =========================================================
-# İŞLENEN SİPARİŞİ KAYDET
+# SAVE PROCESSED ORDER
 # =========================================================
 
 def save_processed_order(
@@ -351,12 +382,11 @@ def save_processed_order(
 
 
 # =========================================================
-# SHOPIER SİPARİŞLERİNİ İŞLE
+# PROCESS SHOPIER ORDERS
 # =========================================================
 
 def process_shopier_orders():
 
-    # Aynı anda başka kontrol yapılıyorsa bekle
     if not shopier_lock.acquire(
         blocking=False
     ):
@@ -392,9 +422,9 @@ def process_shopier_orders():
 
                 continue
 
-            # -------------------------------------------------
+            # =================================================
             # DAHA ÖNCE İŞLENDİ Mİ?
-            # -------------------------------------------------
+            # =================================================
 
             if order_already_processed(
                 order_id
@@ -405,13 +435,12 @@ def process_shopier_orders():
                 continue
 
             print(
-                f"Yeni Shopier siparişi: "
-                f"{order_id}"
+                f"Yeni Shopier siparişi: {order_id}"
             )
 
-            # -------------------------------------------------
-            # ÖDEME KONTROLÜ
-            # -------------------------------------------------
+            # =================================================
+            # ÖDEME
+            # =================================================
 
             payment_status = order.get(
                 "paymentStatus"
@@ -426,9 +455,9 @@ def process_shopier_orders():
 
                 continue
 
-            # -------------------------------------------------
-            # İADE KONTROLÜ
-            # -------------------------------------------------
+            # =================================================
+            # İADE
+            # =================================================
 
             refunds = order.get(
                 "refunds",
@@ -456,18 +485,31 @@ def process_shopier_orders():
 
                 continue
 
-            # -------------------------------------------------
+            # =================================================
             # ÜRÜNLER
-            # -------------------------------------------------
+            # =================================================
 
             line_items = order.get(
                 "lineItems",
                 []
             )
 
+            if not line_items:
+
+                print(
+                    f"Sipariş {order_id} "
+                    f"ürün içermiyor."
+                )
+
+                continue
+
             order_can_be_processed = True
 
             matched_products = []
+
+            # =================================================
+            # TÜM ÜRÜNLERİ ÖNCE KONTROL ET
+            # =================================================
 
             for item in line_items:
 
@@ -475,14 +517,14 @@ def process_shopier_orders():
                     "productId"
                 )
 
-                quantity = item.get(
-                    "quantity",
-                    0
-                )
-
                 title = item.get(
                     "title",
                     "Bilinmeyen ürün"
+                )
+
+                quantity = item.get(
+                    "quantity",
+                    0
                 )
 
                 print(
@@ -515,13 +557,17 @@ def process_shopier_orders():
                 if not product:
 
                     print(
-                        f"  Panelde eşleşen ürün "
+                        f"  ⚠️ Panelde eşleşen ürün "
                         f"bulunamadı: {product_id}"
                     )
 
                     order_can_be_processed = False
 
                     continue
+
+                # -------------------------------------------------
+                # ADET
+                # -------------------------------------------------
 
                 try:
 
@@ -535,7 +581,7 @@ def process_shopier_orders():
                 ):
 
                     print(
-                        f"  Geçersiz adet: "
+                        f"  ⚠️ Geçersiz adet: "
                         f"{quantity}"
                     )
 
@@ -546,36 +592,29 @@ def process_shopier_orders():
                 if quantity <= 0:
 
                     print(
-                        "  Geçersiz ürün adedi."
+                        "  ⚠️ Geçersiz ürün adedi."
                     )
 
                     order_can_be_processed = False
 
                     continue
 
-                print(
-                    f"  Panel ürünü: "
-                    f"{product.model}"
-                )
-
-                print(
-                    f"  Mevcut stok: "
-                    f"{product.stock}"
-                )
-
                 # -------------------------------------------------
-                # STOK YETERLİ Mİ?
+                # STOK
                 # -------------------------------------------------
 
                 if product.stock < quantity:
 
                     print(
-                        f"  ⚠️ Yetersiz stok! "
-                        f"{product.model}"
+                        f"  ⚠️ Yetersiz stok!"
                     )
 
                     print(
-                        f"  Mevcut: "
+                        f"  Ürün: {product.model}"
+                    )
+
+                    print(
+                        f"  Mevcut stok: "
                         f"{product.stock}"
                     )
 
@@ -595,9 +634,9 @@ def process_shopier_orders():
                     )
                 )
 
-            # -------------------------------------------------
-            # EŞLEŞME / STOK SORUNU VARSA
-            # -------------------------------------------------
+            # =================================================
+            # ÜRÜN EŞLEŞMEDİ / STOK YETERSİZ
+            # =================================================
 
             if not order_can_be_processed:
 
@@ -613,9 +652,9 @@ def process_shopier_orders():
 
                 continue
 
-            # -------------------------------------------------
+            # =================================================
             # STOK DÜŞ
-            # -------------------------------------------------
+            # =================================================
 
             for product, quantity in matched_products:
 
@@ -631,9 +670,9 @@ def process_shopier_orders():
                     f"{product.stock}"
                 )
 
-            # -------------------------------------------------
+            # =================================================
             # SİPARİŞİ İŞLENDİ OLARAK KAYDET
-            # -------------------------------------------------
+            # =================================================
 
             save_processed_order(
                 order_id
@@ -642,15 +681,17 @@ def process_shopier_orders():
             new_orders += 1
 
             print(
-                f"✅ Sipariş {order_id} "
-                f"işlendi."
+                f"✅ Sipariş {order_id} işlendi."
             )
+
+        # =====================================================
+        # TEK COMMIT
+        # =====================================================
 
         db.session.commit()
 
         print(
-            f"Yeni sipariş: "
-            f"{new_orders}"
+            f"Yeni sipariş: {new_orders}"
         )
 
         print(
@@ -663,17 +704,19 @@ def process_shopier_orders():
         db.session.rollback()
 
         print(
-            "❌ Shopier sipariş işleme hatası:",
+            "❌ Shopier işlem hatası:",
             e
         )
 
     finally:
 
+        db.session.remove()
+
         shopier_lock.release()
 
 
 # =========================================================
-# OTOMATİK SHOPIER KONTROLÜ
+# BACKGROUND WORKER
 # =========================================================
 
 def shopier_background_worker():
@@ -732,8 +775,13 @@ def dashboard():
             url_for("home")
         )
 
-    # Dashboard açıldığında da anında kontrol et.
-    process_shopier_orders()
+    # =====================================================
+    # ÖNEMLİ:
+    # Burada artık process_shopier_orders()
+    # ÇAĞRILMIYOR.
+    #
+    # Shopier kontrolünü sadece background worker yapıyor.
+    # =====================================================
 
     products = Product.query.all()
 
@@ -752,9 +800,9 @@ def dashboard():
         if product.stock <= 3
     )
 
-    # -------------------------------------------------
-    # SHOPIER SİPARİŞLERİ
-    # -------------------------------------------------
+    # =====================================================
+    # SHOPIER SİPARİŞLERİNİ GÖSTER
+    # =====================================================
 
     shopier_orders = get_shopier_orders()
 
@@ -1021,21 +1069,6 @@ with app.app_context():
 
 
 # =========================================================
-# START BACKGROUND WORKER
-# =========================================================
-
-# Flask debug/reloader iki kere başlatmasın.
-if (
-    not app.debug
-    or os.environ.get(
-        "WERKZEUG_RUN_MAIN"
-    ) == "true"
-):
-
-    start_shopier_background_worker()
-
-
-# =========================================================
 # START
 # =========================================================
 
@@ -1057,6 +1090,8 @@ if __name__ == "__main__":
         "Shopier otomatik kontrol:",
         f"{SHOPIER_CHECK_INTERVAL} saniyede bir"
     )
+
+    start_shopier_background_worker()
 
     app.run(
         debug=False
