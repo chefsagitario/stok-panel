@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Stok Paneli</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+
+<body>
+
+<div class="dashboard">
+
+
+    <header class="topbar">
+
+        <h1>Stok Paneli</h1>
+
+        <div>
+
+            <a href="/add-product">
+                <button type="button">
+                    + Ürün Ekle
+                </button>
+            </a>
+
+            <a href="/logout">
+                <button type="button">
+                    Çıkış
+                </button>
+            </a>
+
+        </div>
+
+    </header>
+
+
+    <!-- =========================
+         İSTATİSTİKLER
+    ========================== -->
+
+    <section class="stats">
+
+        <div class="stat-box">
+
+            <span>Toplam Ürün</span>
+
+            <strong>
+                {{ total_products }}
+            </strong>
+
+        </div>
+
+
+        <div class="stat-box">
+
+            <span>Toplam Stok</span>
+
+            <strong>
+                {{ total_stock }}
+            </strong>
+
+        </div>
+
+
+        <div class="stat-box">
+
+            <span>Düşük Stok</span>
+
+            <strong>
+                {{ low_stock }}
+            </strong>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         SHOPIER SİPARİŞLERİ
+    ========================== -->
+
+    <section class="products">
+
+        <h2>
+            Shopier Siparişleri
+        </h2>
+
+
+        {% if recent_orders %}
+
+            <div class="product-grid">
+
+                {% for order in recent_orders %}
+
+                    <div class="product-card">
+
+                        <div class="product-info">
+
+                            <span class="product-brand">
+                                Sipariş #{{ order.id }}
+                            </span>
+
+
+                            <h3>
+                                {{ order.title }}
+                            </h3>
+
+
+                            <p>
+                                Shopier Product ID:
+                                {{ order.product_id }}
+                            </p>
+
+
+                            <p>
+                                Adet:
+                                <strong>
+                                    {{ order.quantity }}
+                                </strong>
+                            </p>
+
+
+                            <p>
+                                Ödeme:
+                                <strong>
+                                    {{ order.payment_status }}
+                                </strong>
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+        {% else %}
+
+            <p>
+                Shopier siparişi bulunamadı.
+            </p>
+
+        {% endif %}
+
+    </section>
+
+
+    <!-- =========================
+         ÜRÜNLER
+    ========================== -->
+
+    <section class="products">
+
+        <h2>
+            Ürünler
+        </h2>
+
+
+        {% if products %}
+
+            <div class="product-grid">
+
+                {% for product in products %}
+
+                    <div class="product-card">
+
+
+                        <div class="product-image">
+
+                            {% if product.image %}
+
+                                <img
+                                    src="{{ url_for(
+                                        'static',
+                                        filename='uploads/' + product.image
+                                    ) }}"
+                                    alt="{{ product.model }}"
+                                >
+
+                            {% else %}
+
+                                <span>
+                                    Görsel Yok
+                                </span>
+
+                            {% endif %}
+
+                        </div>
+
+
+                        <div class="product-info">
+
+                            <span class="product-brand">
+
+                                {{ product.brand or "-" }}
+
+                            </span>
+
+
+                            <h3>
+
+                                {{ product.model }}
+
+                            </h3>
+
+
+                            <p>
+
+                                {{ product.color or "-" }}
+
+                                /
+
+                                {{ product.size or "-" }}
+
+                            </p>
+
+
+                            <div class="stock-control">
+
+                                <span>
+
+                                    Stok:
+
+                                    <strong>
+                                        {{ product.stock }}
+                                    </strong>
+
+                                </span>
+
+                            </div>
+
+
+                            <div class="product-bottom">
+
+                                <strong>
+
+                                    {{ product.sale_price }} TL
+
+                                </strong>
+
+                            </div>
+
+
+                            <p>
+
+                                Shopier ID:
+
+                                <strong>
+
+                                    {{ product.shopier_product_id
+                                       or "Tanımlanmadı" }}
+
+                                </strong>
+
+                            </p>
+<div class="product-actions">
+
+    <a href="{{ url_for('edit_product', product_id=product.id) }}">
+        <button class="edit-button" type="button">
+            Düzenle
+        </button>
+    </a>
+
+    <form
+        action="{{ url_for('delete_product', product_id=product.id) }}"
+        method="POST"
+        onsubmit="return confirm('Bu ürünü silmek istediğine emin misin?');"
+    >
+        <button
+            type="submit"
+            class="delete-button"
+        >
+            Sil
+        </button>
+    </form>
+
+</div>
+
+                        </div>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+
+        {% else %}
+
+            <p>
+                Henüz ürün eklenmemiş.
+            </p>
+
+        {% endif %}
+
+    </section>
+
+
+</div>
+
+</body>
+
+</html>

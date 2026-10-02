@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Ürünü Düzenle | Stok Paneli</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+<body>
+
+<div class="dashboard">
+
+    <header class="topbar">
+
+        <h1>Ürünü Düzenle</h1>
+
+        <a href="/dashboard">
+            <button type="button">← Dashboard</button>
+        </a>
+
+    </header>
+
+
+    <div class="products">
+
+        <form
+            method="POST"
+            enctype="multipart/form-data"
+        >
+
+            <input
+                type="text"
+                name="model"
+                value="{{ product.model }}"
+                placeholder="Model"
+                required
+            >
+
+            <input
+                type="text"
+                name="brand"
+                value="{{ product.brand or '' }}"
+                placeholder="Marka"
+            >
+
+            <input
+                type="text"
+                name="color"
+                value="{{ product.color or '' }}"
+                placeholder="Renk"
+            >
+
+            <input
+                type="text"
+                name="size"
+                value="{{ product.size or '' }}"
+                placeholder="Numara"
+            >
+
+            <input
+                type="number"
+                name="stock"
+                value="{{ product.stock }}"
+                placeholder="Stok"
+                required
+            >
+
+            <input
+                type="number"
+                step="0.01"
+                name="purchase_price"
+                value="{{ product.purchase_price }}"
+                placeholder="Alış fiyatı"
+            >
+
+            <input
+                type="number"
+                step="0.01"
+                name="sale_price"
+                value="{{ product.sale_price }}"
+                placeholder="Satış fiyatı"
+            >
+
+            <input
+                type="file"
+                name="image"
+                accept="image/*"
+            >
+
+            <button type="submit">
+                Değişiklikleri Kaydet
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+</body>
+</html>

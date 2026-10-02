@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Giriş | Stok Paneli</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <header class="topbar">
+            <h1>Stok Paneli</h1>
+        </header>
+
+        <div class="products">
+
+            <h2>Hesabınıza giriş yapın</h2>
+
+            {% if error %}
+                <p style="color: red;">
+                    {{ error }}
+                </p>
+            {% endif %}
+
+            <form method="POST" action="/">
+
+                <input
+                    type="text"
+                    name="username"
+                    placeholder="Kullanıcı adı"
+                    required
+                >
+
+                <input
+                    type="password"
+                    name="password"
+                    placeholder="Şifre"
+                    required
+                >
+
+                <button type="submit">
+                    Giriş Yap
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

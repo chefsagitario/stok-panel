@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Ürün Ekle | Stok Paneli</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <header class="topbar">
+            <h1>Yeni Ürün Ekle</h1>
+
+            <a href="/dashboard">
+                <button type="button">← Dashboard</button>
+            </a>
+        </header>
+
+        <div class="products">
+
+            <form method="POST" enctype="multipart/form-data">
+
+                <input
+                    type="text"
+                    name="model"
+                    placeholder="Model"
+                    required
+                >
+
+                <input
+                    type="text"
+                    name="brand"
+                    placeholder="Marka"
+                >
+
+                <input
+                    type="text"
+                    name="color"
+                    placeholder="Renk"
+                >
+
+                <input
+                    type="text"
+                    name="size"
+                    placeholder="Numara"
+                >
+
+                <input
+                    type="number"
+                    name="stock"
+                    placeholder="Stok"
+                    required
+                >
+
+                <input
+                    type="number"
+                    step="0.01"
+                    name="purchase_price"
+                    placeholder="Alış fiyatı"
+                >
+
+                <input
+                    type="number"
+                    step="0.01"
+                    name="sale_price"
+                    placeholder="Satış fiyatı"
+                >
+
+                <input
+                    type="text"
+                    name="shopier_product_id"
+                    placeholder="Shopier Product ID"
+                >
+
+                <input
+                    type="file"
+                    name="image"
+                    accept="image/*"
+                >
+
+                <button type="submit">
+                    Ürünü Kaydet
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</body>
+</html>
