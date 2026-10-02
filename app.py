@@ -14,6 +14,7 @@ from flask import (
 
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.pool import NullPool
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
 
@@ -31,18 +32,8 @@ load_dotenv(
     override=True
 )
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL"
-)
-
-SHOPIER_API_KEY = os.getenv(
-    "SHOPIER_API_KEY"
-)
-
-
-# =========================================================
-# LOGIN
-# =========================================================
+DATABASE_URL = os.getenv("DATABASE_URL")
+SHOPIER_API_KEY = os.getenv("SHOPIER_API_KEY")
 
 USERNAME = os.getenv(
     "ADMIN_USERNAME",
@@ -53,13 +44,6 @@ PASSWORD = os.getenv(
     "ADMIN_PASSWORD",
     "admin123"
 )
-
-
-# =========================================================
-# SHOPIER
-# =========================================================
-
-SHOPIER_CHECK_INTERVAL = 60
 
 
 # =========================================================
@@ -75,14 +59,47 @@ app.secret_key = os.getenv(
 
 
 # =========================================================
-# DATABASE
+# UPLOAD AYARLARI
 # =========================================================
-#
-# NullPool kullanıyoruz.
-#
-# Render + Supabase Pooler + uzun süre açık worker
-# kombinasyonunda eski/stale SSL bağlantılarının
-# tekrar kullanılmasını engeller.
+
+UPLOAD_FOLDER = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "static",
+    "uploads"
+)
+
+os.makedirs(
+    UPLOAD_FOLDER,
+    exist_ok=True
+)
+
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+ALLOWED_EXTENSIONS = {
+    "png",
+    "jpg",
+    "jpeg",
+    "webp",
+    "gif"
+}
+
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+
+
+def allowed_file(filename):
+
+    return (
+        "." in filename
+        and filename.rsplit(
+            ".",
+            1
+        )[1].lower()
+        in ALLOWED_EXTENSIONS
+    )
+
+
+# =========================================================
+# DATABASE
 # =========================================================
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
@@ -98,8 +115,10 @@ db = SQLAlchemy(app)
 
 
 # =========================================================
-# SHOPIER LOCK
+# SHOPIER AYARLARI
 # =========================================================
+
+SHOPIER_CHECK_INTERVAL = 60
 
 shopier_lock = threading.Lock()
 
@@ -180,7 +199,7 @@ class ShopierOrder(db.Model):
 
 
 # =========================================================
-# LOGIN REQUIRED
+# LOGIN
 # =========================================================
 
 def login_required():
@@ -189,10 +208,6 @@ def login_required():
         "logged_in"
     ) is True
 
-
-# =========================================================
-# HOME / LOGIN
-# =========================================================
 
 @app.route(
     "/",
@@ -246,7 +261,7 @@ def logout():
 
 
 # =========================================================
-# SHOPIER ORDERS API
+# SHOPIER API
 # =========================================================
 
 def get_shopier_orders():
@@ -264,7 +279,6 @@ def get_shopier_orders():
     )
 
     headers = {
-
         "Authorization":
             f"Bearer {SHOPIER_API_KEY}",
 
@@ -328,7 +342,7 @@ def get_shopier_orders():
 
 
 # =========================================================
-# CHECK PROCESSED ORDER
+# ORDER CHECK
 # =========================================================
 
 def order_already_processed(
@@ -347,10 +361,6 @@ def order_already_processed(
 
     return existing_order is not None
 
-
-# =========================================================
-# SAVE PROCESSED ORDER
-# =========================================================
 
 def save_processed_order(
     shopier_order_id
@@ -382,7 +392,7 @@ def save_processed_order(
 
 
 # =========================================================
-# PROCESS SHOPIER ORDERS
+# SHOPIER SİPARİŞLERİNİ İŞLE
 # =========================================================
 
 def process_shopier_orders():
@@ -414,17 +424,10 @@ def process_shopier_orders():
 
         for order in orders:
 
-            order_id = order.get(
-                "id"
-            )
+            order_id = order.get("id")
 
             if not order_id:
-
                 continue
-
-            # =================================================
-            # DAHA ÖNCE İŞLENDİ Mİ?
-            # =================================================
 
             if order_already_processed(
                 order_id
@@ -438,10 +441,6 @@ def process_shopier_orders():
                 f"Yeni Shopier siparişi: {order_id}"
             )
 
-            # =================================================
-            # ÖDEME
-            # =================================================
-
             payment_status = order.get(
                 "paymentStatus"
             )
@@ -454,10 +453,6 @@ def process_shopier_orders():
                 )
 
                 continue
-
-            # =================================================
-            # İADE
-            # =================================================
 
             refunds = order.get(
                 "refunds",
@@ -473,7 +468,6 @@ def process_shopier_orders():
                 ) == "succeeded":
 
                     successful_refund = True
-
                     break
 
             if successful_refund:
@@ -485,10 +479,6 @@ def process_shopier_orders():
 
                 continue
 
-            # =================================================
-            # ÜRÜNLER
-            # =================================================
-
             line_items = order.get(
                 "lineItems",
                 []
@@ -496,20 +486,11 @@ def process_shopier_orders():
 
             if not line_items:
 
-                print(
-                    f"Sipariş {order_id} "
-                    f"ürün içermiyor."
-                )
-
                 continue
 
             order_can_be_processed = True
 
             matched_products = []
-
-            # =================================================
-            # TÜM ÜRÜNLERİ ÖNCE KONTROL ET
-            # =================================================
 
             for item in line_items:
 
@@ -540,10 +521,6 @@ def process_shopier_orders():
                     f"  Adet: {quantity}"
                 )
 
-                # -------------------------------------------------
-                # PANELDE ÜRÜNÜ BUL
-                # -------------------------------------------------
-
                 product = (
                     Product.query
                     .filter_by(
@@ -565,10 +542,6 @@ def process_shopier_orders():
 
                     continue
 
-                # -------------------------------------------------
-                # ADET
-                # -------------------------------------------------
-
                 try:
 
                     quantity = int(
@@ -580,47 +553,21 @@ def process_shopier_orders():
                     ValueError
                 ):
 
-                    print(
-                        f"  ⚠️ Geçersiz adet: "
-                        f"{quantity}"
-                    )
-
                     order_can_be_processed = False
 
                     continue
 
                 if quantity <= 0:
 
-                    print(
-                        "  ⚠️ Geçersiz ürün adedi."
-                    )
-
                     order_can_be_processed = False
 
                     continue
 
-                # -------------------------------------------------
-                # STOK
-                # -------------------------------------------------
-
                 if product.stock < quantity:
 
                     print(
-                        f"  ⚠️ Yetersiz stok!"
-                    )
-
-                    print(
-                        f"  Ürün: {product.model}"
-                    )
-
-                    print(
-                        f"  Mevcut stok: "
-                        f"{product.stock}"
-                    )
-
-                    print(
-                        f"  Satılan: "
-                        f"{quantity}"
+                        f"  ⚠️ Yetersiz stok: "
+                        f"{product.model}"
                     )
 
                     order_can_be_processed = False
@@ -634,10 +581,6 @@ def process_shopier_orders():
                     )
                 )
 
-            # =================================================
-            # ÜRÜN EŞLEŞMEDİ / STOK YETERSİZ
-            # =================================================
-
             if not order_can_be_processed:
 
                 print(
@@ -645,16 +588,7 @@ def process_shopier_orders():
                     f"stoktan düşülmedi."
                 )
 
-                print(
-                    "Shopier Product ID veya "
-                    "stok miktarını kontrol et."
-                )
-
                 continue
-
-            # =================================================
-            # STOK DÜŞ
-            # =================================================
 
             for product, quantity in matched_products:
 
@@ -670,10 +604,6 @@ def process_shopier_orders():
                     f"{product.stock}"
                 )
 
-            # =================================================
-            # SİPARİŞİ İŞLENDİ OLARAK KAYDET
-            # =================================================
-
             save_processed_order(
                 order_id
             )
@@ -683,10 +613,6 @@ def process_shopier_orders():
             print(
                 f"✅ Sipariş {order_id} işlendi."
             )
-
-        # =====================================================
-        # TEK COMMIT
-        # =====================================================
 
         db.session.commit()
 
@@ -775,14 +701,6 @@ def dashboard():
             url_for("home")
         )
 
-    # =====================================================
-    # ÖNEMLİ:
-    # Burada artık process_shopier_orders()
-    # ÇAĞRILMIYOR.
-    #
-    # Shopier kontrolünü sadece background worker yapıyor.
-    # =====================================================
-
     products = Product.query.all()
 
     total_products = len(
@@ -800,22 +718,15 @@ def dashboard():
         if product.stock <= 3
     )
 
-    # =====================================================
-    # SHOPIER SİPARİŞLERİNİ GÖSTER
-    # =====================================================
-
     shopier_orders = get_shopier_orders()
 
     recent_orders = []
 
     for order in shopier_orders:
 
-        order_id = order.get(
-            "id"
-        )
+        order_id = order.get("id")
 
         if not order_id:
-
             continue
 
         line_items = order.get(
@@ -855,20 +766,11 @@ def dashboard():
 
     return render_template(
         "dashboard.html",
-
         products=products,
-
-        total_products=
-            total_products,
-
-        total_stock=
-            total_stock,
-
-        low_stock=
-            low_stock,
-
-        recent_orders=
-            recent_orders
+        total_products=total_products,
+        total_stock=total_stock,
+        low_stock=low_stock,
+        recent_orders=recent_orders
     )
 
 
@@ -889,6 +791,58 @@ def add_product():
         )
 
     if request.method == "POST":
+
+        image_filename = None
+
+        # -------------------------------------------------
+        # FOTOĞRAF
+        # -------------------------------------------------
+
+        image_file = request.files.get(
+            "image"
+        )
+
+        if (
+            image_file
+            and image_file.filename
+        ):
+
+            if not allowed_file(
+                image_file.filename
+            ):
+
+                return (
+                    "Geçersiz fotoğraf formatı. "
+                    "PNG, JPG, JPEG, WEBP veya GIF kullan.",
+                    400
+                )
+
+            original_name = secure_filename(
+                image_file.filename
+            )
+
+            timestamp = str(
+                int(time.time() * 1000)
+            )
+
+            image_filename = (
+                timestamp
+                + "_"
+                + original_name
+            )
+
+            image_path = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                image_filename
+            )
+
+            image_file.save(
+                image_path
+            )
+
+        # -------------------------------------------------
+        # ÜRÜN
+        # -------------------------------------------------
 
         product = Product(
 
@@ -928,6 +882,8 @@ def add_product():
                     0
                 ) or 0
             ),
+
+            image=image_filename,
 
             shopier_product_id=(
                 request.form.get(
@@ -1016,6 +972,75 @@ def edit_product(product_id):
             ) or None
         )
 
+        # -------------------------------------------------
+        # YENİ FOTOĞRAF VARSA
+        # -------------------------------------------------
+
+        image_file = request.files.get(
+            "image"
+        )
+
+        if (
+            image_file
+            and image_file.filename
+        ):
+
+            if not allowed_file(
+                image_file.filename
+            ):
+
+                return (
+                    "Geçersiz fotoğraf formatı.",
+                    400
+                )
+
+            # Eski fotoğrafı sil
+            if product.image:
+
+                old_path = os.path.join(
+                    app.config["UPLOAD_FOLDER"],
+                    product.image
+                )
+
+                if os.path.exists(
+                    old_path
+                ):
+
+                    try:
+
+                        os.remove(
+                            old_path
+                        )
+
+                    except OSError:
+
+                        pass
+
+            original_name = secure_filename(
+                image_file.filename
+            )
+
+            timestamp = str(
+                int(time.time() * 1000)
+            )
+
+            new_filename = (
+                timestamp
+                + "_"
+                + original_name
+            )
+
+            new_path = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                new_filename
+            )
+
+            image_file.save(
+                new_path
+            )
+
+            product.image = new_filename
+
         db.session.commit()
 
         return redirect(
@@ -1047,6 +1072,28 @@ def delete_product(product_id):
     product = Product.query.get_or_404(
         product_id
     )
+
+    # Fotoğrafı da sil
+    if product.image:
+
+        image_path = os.path.join(
+            app.config["UPLOAD_FOLDER"],
+            product.image
+        )
+
+        if os.path.exists(
+            image_path
+        ):
+
+            try:
+
+                os.remove(
+                    image_path
+                )
+
+            except OSError:
+
+                pass
 
     db.session.delete(
         product
@@ -1094,5 +1141,12 @@ if __name__ == "__main__":
     start_shopier_background_worker()
 
     app.run(
+        host="0.0.0.0",
+        port=int(
+            os.getenv(
+                "PORT",
+                5000
+            )
+        ),
         debug=False
     )
